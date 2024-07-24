@@ -1,0 +1,10 @@
+SIP/2.0 200 OK
+Via: SIP/2.0/TCP 192.168.120.39:47972;received=192.168.120.39;branch=z9hG4bK.eM5X46yeY;rport=47972
+From: <sip:nvorontsov@ftr-3-sip.webinar.ru>;tag=1rlbzq6ED
+To: <sip:0000@ftr-3-sip.webinar.ru>;tag=fYl1sZMg
+Call-ID: sk1enkKwc3
+CSeq: 25 BYE
+Content-Length: 0
+Contact: <sip:0000@37.130.194.37:5070;transport=tcp;instance=7llswEco>
+Server: IVR/24.07.1
+

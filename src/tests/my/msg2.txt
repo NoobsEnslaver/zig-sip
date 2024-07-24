@@ -1,0 +1,8 @@
+SIP/2.0 100 trying -- your call is important to us
+Via: SIP/2.0/TCP 192.168.120.39:41064;branch=z9hG4bK.9i4i5Soye;rport=41064;received=51.250.23.204
+From: <sip:nvorontsov@sip.webinar.ru>;tag=MHqFUTgqq
+To: sip:1931649216@sip.webinar.ru
+CSeq: 20 INVITE
+Call-ID: VSwbsYdfJm
+Content-Length: 0
+

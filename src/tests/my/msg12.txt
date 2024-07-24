@@ -1,0 +1,35 @@
+SIP/2.0 200 OK
+Record-Route: <sip:ftr-3-sip.webinar.ru:5060;transport=tcp;r2=on;lr;ftag=1rlbzq6ED;did=c75.fa61>
+Record-Route: <sip:ftr-3-sip.webinar.ru;transport=tcp;r2=on;lr;ftag=1rlbzq6ED;did=c75.fa61>
+Via: SIP/2.0/TCP 192.168.120.39:47972;received=192.168.120.39;branch=z9hG4bK.hbN~QKi-E;rport=47972
+From: <sip:nvorontsov@ftr-3-sip.webinar.ru>;tag=1rlbzq6ED
+To: <sip:0000@ftr-3-sip.webinar.ru>;tag=fYl1sZMg
+Call-ID: sk1enkKwc3
+CSeq: 20 INVITE
+Content-Length: 542
+Content-Type: application/sdp
+Contact: <sip:0000@37.130.194.37:5070;transport=tcp;instance=7llswEco>
+Server: IVR/24.07.1
+Allow: INVITE, ACK, CANCEL, NOTIFY, OPTIONS, BYE, INFO
+Supported: outbound, timer
+
+v=0
+o=IVR 1721323163190978714 0 IN IP4 37.130.194.37
+s=Talk
+c=IN IP4 37.130.194.37
+b=AS:1024
+t=0 0
+m=audio 38314 RTP/AVPF 96 0 8
+a=rtpmap:96 opus/48000/2
+a=fmtp:96 maxaveragebitrate=6000;useinbandfec=1;usedtx=1;cbr=0;sprop-maxcapturerate=48000;sprop-stereo=0
+a=sendrecv
+a=rtcp-fb:* trr-int 1000
+m=video 38312 RTP/AVPF 96 97
+b=TIAS:1048576
+a=rtpmap:96 H264/90000
+a=fmtp:96 sprop-parameter-sets=Z0LAH4yNQCgC3QDwiEag,aM48gA==
+a=rtpmap:97 VP8/90000
+a=sendrecv
+a=rtcp-fb:* trr-int 1000
+a=rtcp-fb:* nack pli
+a=rtcp-fb:* ccm fir

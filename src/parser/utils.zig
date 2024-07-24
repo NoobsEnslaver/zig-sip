@@ -1,4 +1,6 @@
 const std = @import("std");
+const headers = @import("./headers.zig");
+const RURI = @import("./ruri.zig").RURI;
 
 // --------------- Types -------------------
 pub const Method = enum {
@@ -8,6 +10,7 @@ pub const Method = enum {
     BYE,
     CANCEL,
     REGISTER,
+    INFO,
 
     UNEXPECTED,
     USER1,
@@ -19,12 +22,13 @@ pub const Method = enum {
         if (std.mem.eql(u8, s, "INVITE")) return Method.INVITE;
         if (std.mem.eql(u8, s, "ACK")) return Method.ACK;
         if (std.mem.eql(u8, s, "OPTIONS")) return Method.OPTIONS;
+        if (std.mem.eql(u8, s, "INFO")) return Method.INFO;
         if (std.mem.eql(u8, s, "BYE")) return Method.BYE;
         if (std.mem.eql(u8, s, "CANCEL")) return Method.CANCEL;
         if (std.mem.eql(u8, s, "REGISTER")) return Method.REGISTER;
 
         switch (opts) {
-            ParseMethodErrBehaviorTag.err => |e| return e,
+            ParseMethodErrBehaviorTag.err => return error.BadMethod,
             ParseMethodErrBehaviorTag.replace => |res| {
                 return res;
             },
@@ -38,8 +42,8 @@ pub const Method = enum {
 };
 
 pub const Req = struct {
-    ruri: []const u8 = undefined,
-    headers: [][]const u8 = undefined,
+    ruri: RURI = undefined,
+    headers: std.ArrayList(headers.RawHeader) = undefined,
     method: Method = undefined,
     body: ?[]const u8 = null,
 };
@@ -47,7 +51,7 @@ pub const Req = struct {
 pub const Resp = struct {
     code: u10 = undefined,
     reason: []const u8 = undefined,
-    headers: [][]const u8 = undefined,
+    headers: std.ArrayList(headers.RawHeader) = undefined,
     method: Method = undefined,
     body: ?[]const u8 = null,
 };
@@ -58,49 +62,84 @@ pub const Msg = union(MessageType) {
     resp: Resp,
 };
 
-pub const AllocWhen = enum { alloc_if_needed, alloc_always };
+pub const UnknownHeaderBehaviorTag = enum { err, remove, skip_parsing, callback };
+pub const UnknownHeaderBehavior = union(UnknownHeaderBehaviorTag) {
+    err,
+    remove,
+    skip_parsing,
+    callback: fn (*headers.RawHeader) anyerror!void,
+};
+
 pub const ParseMethodErrBehaviorTag = enum { err, replace, callback };
 pub const ParseMethodErrBehavior = union(ParseMethodErrBehaviorTag) {
-    err: anyerror,
+    err,
     replace: Method,
     callback: fn ([]const u8) anyerror!Method,
 };
 pub const ParseOptions = struct {
-    // duplicate_field_behavior: enum {
-    //     use_first,
-    //     @"error",
-    //     use_last,
-    // } = .@"error",
+    duplicate_field_behavior: enum {
+        use_first,
+        @"error",
+        use_last,
+    } = .@"error",
 
-    /// If false, finding an unknown header returns `error.UnknownHeader`.
-    ignore_unknown_headers: bool = true,
-    on_parse_method_error: ParseMethodErrBehavior = ParseMethodErrBehavior{ .err = error.BadMethod },
+    // if true - remove an unknown header from parsing result (no error)
+    // If false - finding an unknown header returns `error.UnknownHeader`.
+    on_unknown_header: UnknownHeaderBehavior = .skip_parsing,
+    on_parse_method_error: ParseMethodErrBehavior = .err,
 
     // limits
-    max_body_len: ?usize = 8192,
-    max_message_len: ?usize = 4096,
+    max_message_size: usize = 8192,
     max_line_len: usize = 256,
+    max_headers: u8 = 50,
 
-    /// This determines whether strings should always be copied,
-    /// or if a reference to the given buffer should be preferred if possible.
-    allocate: AllocWhen = AllocWhen.alloc_always,
+    // Headers wil be complitely parsed, or just to form "key":"value" and then when required
+    lazy_parsing: bool = false,
+
+    share_memory: bool = false,
+    allow_multiline: bool = true,
+    ignore_sip_version: bool = true,
 };
 
 // --------------- Functions -------------------
 
-pub fn readUntilDelimiterAlloc(allocator: std.mem.Allocator, r: anytype, delimiter: []const u8, max_size: ?usize) ![]u8 {
-    var array_list = std.ArrayList(u8).init(allocator);
-    defer array_list.deinit();
-    const w = array_list.writer();
-    const delim_prefix = delimiter[0 .. delimiter.len - 1];
-    const delim_end = delimiter[delimiter.len - 1];
-    try r.streamUntilDelimiter(w, delim_end, max_size);
-    while (!std.mem.eql(u8, array_list.items[array_list.items.len - (delimiter.len - 1) .. array_list.items.len], delim_prefix)) {
-        try r.streamUntilDelimiter(w, delimiter[delimiter.len - 1], null);
-    }
-    for (0..delimiter.len - 1) |_| {
-        _ = array_list.pop();
+pub fn readLine(allocator: std.mem.Allocator, reader: anytype, max_size: usize) ![]const u8 {
+    const buf: []u8 = try allocator.alloc(u8, max_size);
+    var stream = std.io.fixedBufferStream(buf);
+    const w = stream.writer();
+    try reader.streamUntilDelimiter(w, '\n', max_size);
+    while (buf[w.context.pos - 1] != '\r') {
+        try reader.streamUntilDelimiter(w, '\n', max_size - w.context.pos);
     }
 
-    return try array_list.toOwnedSlice();
+    return std.mem.trimRight(u8, buf[0..w.context.pos], &std.ascii.whitespace);
+}
+
+pub fn isValidHeaderName(name: []const u8) bool {
+    for (name) |c| {
+        if (!std.ascii.isAlphabetic(c) and c != '-') {
+            return false;
+        }
+    }
+    return true;
+}
+
+pub fn foldl(T: type, f: fn (T, T) T, init: T, list: []const T) T {
+    var acc: T = init;
+    for (list) |x| {
+        acc = f(acc, x);
+    }
+    return acc;
+}
+
+pub fn reduce(T: type, f: fn (T, T) T, list: []const T) T {
+    return foldl(T, f, list[0], list[1..]);
+}
+
+pub fn max(xs: []const usize) usize {
+    var res = 0;
+    for (xs) |x| {
+        res = @max(res, x);
+    }
+    return res;
 }

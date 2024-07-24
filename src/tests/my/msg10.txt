@@ -1,0 +1,10 @@
+SIP/2.0 200 OK
+Via: SIP/2.0/TCP 192.168.120.39:41064;received=51.250.23.204;branch=z9hG4bK.SfnAR~OVb;rport=41064
+From: <sip:nvorontsov@sip.webinar.ru>;tag=MHqFUTgqq
+To: <sip:1931649216@sip.webinar.ru>;tag=bkGoYo9n
+Call-ID: VSwbsYdfJm
+CSeq: 24 BYE
+Content-Length: 0
+Contact: <sip:1931649216@10.131.0.17:5080;transport=tcp;instance=EaOxFNM9>
+Server: WRC/24.07
+

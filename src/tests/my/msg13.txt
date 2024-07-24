@@ -1,0 +1,15 @@
+INFO sip:0000@37.130.194.37:5070;transport=tcp;instance=7llswEco SIP/2.0
+Via: SIP/2.0/TCP 192.168.120.39:47972;branch=z9hG4bK.uB~O6mQUx;rport
+From: <sip:nvorontsov@ftr-3-sip.webinar.ru>;tag=1rlbzq6ED
+To: <sip:0000@ftr-3-sip.webinar.ru>;tag=fYl1sZMg
+CSeq: 21 INFO
+Call-ID: sk1enkKwc3
+Max-Forwards: 70
+Content-Length: 24
+Content-Type: application/dtmf-relay
+User-Agent: Linphone-Desktop/5.2.4 (Stealth-17Studio-A13VH) ubuntu/24.04 Qt/5.15.2 LinphoneSDK/5.3.41
+Route: <sip:ftr-3-sip.webinar.ru;transport=tcp;r2=on;lr;ftag=1rlbzq6ED;did=c75.fa61>
+Route: <sip:ftr-3-sip.webinar.ru:5060;transport=tcp;r2=on;lr;ftag=1rlbzq6ED;did=c75.fa61>
+
+Signal=1
+Duration=250

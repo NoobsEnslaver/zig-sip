@@ -1,8 +1,8 @@
 const std = @import("std");
 
 pub const H = struct {};
-pub const key_lower = "via";
-pub const key = "Via";
+pub const key_lower = "warning";
+pub const key = "Warning";
 
 pub fn parse(str: []const u8) !H {
     _ = str;
@@ -10,6 +10,6 @@ pub fn parse(str: []const u8) !H {
 }
 // -------------- Tests --------------------
 const t = std.testing;
-test "parsing 'Via' header" {
+test "parsing 'Warning' header" {
     try t.expect(true);
 }
