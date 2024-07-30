@@ -4,10 +4,8 @@ const utils = @import("./parser/utils.zig");
 // const sdp = @import("./sdp/sdp.zig");
 
 // ---------------- Interfaces --------------------
-pub const MessageType = utils.MessageType;
-pub const Req = utils.Req;
-pub const Resp = utils.Resp;
 pub const Msg = utils.Msg;
+pub const MsgTag = utils.MsgTag;
 
 // ---------------- Testing -----------------------
 const t = std.testing;
@@ -96,9 +94,9 @@ test {
             try t.expect(false);
             continue;
         };
-        if (msg == MessageType.req) {
-            std.debug.print("{d}++++++++++++++\nRuri: {s}\n", .{ i, msg.req.ruri.value });
-            for (msg.req.headers.items) |hdr| {
+        if (msg.tag == .req) {
+            std.debug.print("{d}++++++++++++++\nRuri: {s}\n", .{ i, msg.ruri.?.value });
+            for (msg.headers.items) |hdr| {
                 std.debug.print("{s}: {s}\n", .{ hdr.key, hdr.value });
             }
             std.debug.print("\n\n", .{});
@@ -171,19 +169,18 @@ test "own2.txt" {
     var arena = std.heap.ArenaAllocator.init(t.allocator);
     defer arena.deinit();
     const msg = try parser.parseFromSlice(arena.allocator(), raw_msg, &.{});
-    try t.expectEqual(utils.MessageType.resp, @as(utils.MessageType, msg));
+    try t.expectEqual(utils.MsgTag.resp, msg.tag);
 
-    const resp = msg.resp;
-    try t.expectEqual(401, resp.code);
-    try t.expectEqualStrings("Unauthorized", resp.reason);
-    try t.expectEqual(null, resp.body);
-    try t.expectEqual(9, resp.headers.items.len);
+    try t.expectEqual(401, msg.code);
+    try t.expectEqualStrings("Unauthorized", msg.reason.?);
+    try t.expectEqual(null, msg.body);
+    try t.expectEqual(9, msg.headers.items.len);
 
-    const hdr5 = try resp.headers.items[5].parse(&.{});
+    const hdr5 = try msg.headers.items[5].parse();
     try t.expectEqualStrings(hdr5.call_id.localid, "982773899-reg");
     try t.expectEqualStrings(hdr5.call_id.host.?, "172.21.9.155");
 
-    const hdr6 = try resp.headers.items[6].parse(&.{});
+    const hdr6 = try msg.headers.items[6].parse();
     try t.expectEqual(hdr6.cseq.method, utils.Method.REGISTER);
     try t.expectEqual(hdr6.cseq.seq, 1);
 }
@@ -201,11 +198,10 @@ test "own0.txt" {
     var arena = std.heap.ArenaAllocator.init(t.allocator);
     defer arena.deinit();
     const msg = try parser.parseFromSlice(arena.allocator(), raw_msg, &.{});
-    try t.expectEqual(utils.MessageType.req, @as(utils.MessageType, msg));
+    try t.expectEqual(utils.MsgTag.req, msg.tag);
 
-    const req = msg.req;
-    try t.expectEqualStrings("sip:garage.sr.ntc.nokia.com", req.ruri.value);
-    try t.expectEqual(utils.Method.REGISTER, req.method);
+    try t.expectEqualStrings("sip:garage.sr.ntc.nokia.com", msg.ruri.?.value);
+    try t.expectEqual(utils.Method.REGISTER, msg.method);
 }
 
 test "self captured good" {
@@ -223,7 +219,8 @@ test "self captured good" {
             try t.expect(false);
             continue;
         };
-        if (msg == MessageType.req) {
+
+        if (msg.tag == .req) {
             // std.debug.print("++++++{s}++++++++\nRuri: {s}\n", .{ file.name, msg.req.ruri.value });
             // for (msg.req.headers.items) |hdr| {
             //     std.debug.print("{s}: {s}\n", .{ hdr.key, hdr.value });

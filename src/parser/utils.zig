@@ -1,5 +1,5 @@
 const std = @import("std");
-const headers = @import("./headers.zig");
+const hs = @import("./headers.zig");
 const RURI = @import("./ruri.zig").RURI;
 
 // --------------- Types -------------------
@@ -41,25 +41,24 @@ pub const Method = enum {
     }
 };
 
-pub const Req = struct {
-    ruri: RURI = undefined,
-    headers: std.ArrayList(headers.RawHeader) = undefined,
-    method: Method = undefined,
-    body: ?[]const u8 = null,
-};
+pub const MsgTag = enum { req, resp };
 
-pub const Resp = struct {
-    code: u10 = undefined,
-    reason: []const u8 = undefined,
-    headers: std.ArrayList(headers.RawHeader) = undefined,
+pub const Msg = struct {
     method: Method = undefined,
+    headers: std.ArrayList(hs.RawHeader) = undefined,
     body: ?[]const u8 = null,
-};
+    tag: MsgTag,
 
-pub const MessageType = enum { req, resp };
-pub const Msg = union(MessageType) {
-    req: Req,
-    resp: Resp,
+    code: ?u10 = null,
+    reason: ?[]const u8 = null,
+    ruri: ?RURI = null,
+
+    arena: *std.heap.ArenaAllocator = undefined,
+    parse_opts: *const ParseOptions,
+
+    pub fn deinit(self: *@This()) void {
+        self.arena.deinit();
+    }
 };
 
 pub const UnknownHeaderBehaviorTag = enum { err, remove, skip_parsing, callback };
@@ -67,14 +66,14 @@ pub const UnknownHeaderBehavior = union(UnknownHeaderBehaviorTag) {
     err,
     remove,
     skip_parsing,
-    callback: fn (*headers.RawHeader) anyerror!void,
+    callback: *const fn (*hs.RawHeader) anyerror!void,
 };
 
 pub const ParseMethodErrBehaviorTag = enum { err, replace, callback };
 pub const ParseMethodErrBehavior = union(ParseMethodErrBehaviorTag) {
     err,
     replace: Method,
-    callback: fn ([]const u8) anyerror!Method,
+    callback: *const fn ([]const u8) anyerror!Method,
 };
 pub const ParseOptions = struct {
     duplicate_field_behavior: enum {
@@ -94,11 +93,17 @@ pub const ParseOptions = struct {
     max_headers: u8 = 50,
 
     // Headers wil be complitely parsed, or just to form "key":"value" and then when required
-    lazy_parsing: bool = false,
+    lazy_parsing: bool = true,
 
     share_memory: bool = false,
     allow_multiline: bool = true,
     ignore_sip_version: bool = true,
+    compress_headers: bool = false,
+};
+
+pub const Pair = struct {
+    key: []const u8,
+    value: []const u8,
 };
 
 // --------------- Functions -------------------
@@ -142,4 +147,26 @@ pub fn max(xs: []const usize) usize {
         res = @max(res, x);
     }
     return res;
+}
+
+pub fn indexOfUnquoted(str: []const u8, c: u8) ?usize {
+    if (str.len == 0) return null;
+    if (str[0] == c) return 0;
+
+    var it = std.mem.window(u8, str, 2, 1);
+    var idx: usize = 1;
+    while (it.next()) |s| : (idx += 1) {
+        if (s[1] == c and s[0] != '\\') {
+            return idx;
+        }
+    }
+    return null;
+}
+
+// ------------------ Tests -----------------
+const t = std.testing;
+test indexOfUnquoted {
+    const str = "\"J Rosenberg \\\"\" <sip:jdrosen@lucent.com>;tag = 98asjd8";
+    try t.expectEqual(0, indexOfUnquoted(str, '"').?);
+    try t.expectEqual(14, indexOfUnquoted(str[1..], '"').?);
 }
