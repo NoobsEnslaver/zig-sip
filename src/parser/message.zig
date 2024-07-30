@@ -17,7 +17,10 @@ pub fn parseFromReader(allocator: Allocator, reader: anytype, options: *const ut
     const arena_alloc = arena.allocator();
     errdefer arena.deinit();
 
-    var early_stream = std.io.LimitedReader(@TypeOf(reader)){ .bytes_left = options.max_message_size, .inner_reader = reader };
+    var early_stream = std.io.LimitedReader(@TypeOf(reader)){
+        .bytes_left = options.max_message_size,
+        .inner_reader = reader,
+    };
     const lim_reader = early_stream.reader();
 
     const buf = try arena_alloc.alloc(u8, options.max_line_len);

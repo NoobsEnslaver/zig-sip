@@ -3,38 +3,45 @@ const hs = @import("./headers.zig");
 const RURI = @import("./ruri.zig").RURI;
 
 // --------------- Types -------------------
-pub const Method = enum {
-    INVITE,
-    ACK,
-    OPTIONS,
-    BYE,
-    CANCEL,
-    REGISTER,
-    INFO,
+pub const Method = enum(usize) {
+    INVITE = 1 << 0,
+    ACK = 1 << 1,
+    OPTIONS = 1 << 2,
+    BYE = 1 << 3,
+    CANCEL = 1 << 4,
+    REGISTER = 1 << 5,
+    INFO = 1 << 6,
+    SUBSCRIBE = 1 << 7,
+    REFER = 1 << 8,
+    NOTIFY = 1 << 9,
+    MESSAGE = 1 << 10,
+    UPDATE = 1 << 11,
+    PRACK = 1 << 12,
 
-    UNEXPECTED,
-    USER1,
-    USER2,
-    USER3,
-    USER4,
+    UNEXPECTED = 1 << 13,
+    USER1 = 1 << 14,
+    USER2 = 1 << 15,
+    USER3 = 1 << 16,
 
     pub fn parseFromSlice(s: []const u8, opts: ParseMethodErrBehavior) !Method {
         if (std.mem.eql(u8, s, "INVITE")) return Method.INVITE;
         if (std.mem.eql(u8, s, "ACK")) return Method.ACK;
         if (std.mem.eql(u8, s, "OPTIONS")) return Method.OPTIONS;
-        if (std.mem.eql(u8, s, "INFO")) return Method.INFO;
         if (std.mem.eql(u8, s, "BYE")) return Method.BYE;
         if (std.mem.eql(u8, s, "CANCEL")) return Method.CANCEL;
         if (std.mem.eql(u8, s, "REGISTER")) return Method.REGISTER;
+        if (std.mem.eql(u8, s, "INFO")) return Method.INFO;
+        if (std.mem.eql(u8, s, "SUBSCRIBE")) return Method.SUBSCRIBE;
+        if (std.mem.eql(u8, s, "REFER")) return Method.REFER;
+        if (std.mem.eql(u8, s, "NOTIFY")) return Method.NOTIFY;
+        if (std.mem.eql(u8, s, "MESSAGE")) return Method.MESSAGE;
+        if (std.mem.eql(u8, s, "UPDATE")) return Method.UPDATE;
+        if (std.mem.eql(u8, s, "PRACK")) return Method.PRACK;
 
         switch (opts) {
             ParseMethodErrBehaviorTag.err => return error.BadMethod,
-            ParseMethodErrBehaviorTag.replace => |res| {
-                return res;
-            },
-            ParseMethodErrBehaviorTag.callback => |f| {
-                return f(s);
-            },
+            ParseMethodErrBehaviorTag.replace => |res| return res,
+            ParseMethodErrBehaviorTag.callback => |f| return f(s),
         }
 
         return error.BadMethod;

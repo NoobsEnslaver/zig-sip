@@ -220,7 +220,7 @@ pub const RawHeader = struct {
             .accept_encoding => Header{ .accept_encoding = try AcceptEncoding.parse(self.value) },
             .accept_language => Header{ .accept_language = try AcceptLanguage.parse(self.value) },
             .alert_info => Header{ .alert_info = try AlertInfo.parse(self.value) },
-            .allow => Header{ .allow = try Allow.parse(self.value) },
+            .allow => Header{ .allow = try Allow.parse(self.value, options) },
             .authentication_info => Header{ .authentication_info = try AuthenticationInfo.parse(self.value) },
             .authorization => Header{ .authorization = try Authorization.parse(self.value) },
             .call_id => Header{ .call_id = try CallId.parse(self.value) },
