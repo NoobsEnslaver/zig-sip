@@ -2,6 +2,7 @@ const std = @import("std");
 const eql = @import("std").mem.eql;
 const Allocator = std.mem.Allocator;
 const utils = @import("./utils.zig");
+const message = @import("./message.zig");
 // const ArrayList = (comptime T: type)
 
 pub const Accept = @import("headers/accept.zig");
@@ -205,10 +206,10 @@ pub const RawHeader = struct {
     value: []const u8,
     tag: Tag = Tag.unknown,
     parsed: ?Header = null,
-    parent: *const utils.Msg,
+    parent: *const message.Msg,
 
-    pub fn parse(self: *@This()) !Header {
-        if (self.parsed) |h| return h;
+    pub fn parse(self: *@This()) !*Header {
+        if (self.parsed) |*h| return h;
         if (self.tag == Tag.unknown) return error.UnknownHeader;
 
         const options = self.parent.parse_opts;
@@ -234,7 +235,7 @@ pub const RawHeader = struct {
             .max_forwards => Header{ .max_forwards = try MaxForwards.parse(self.value) },
             .route => Header{ .route = try Route.parse(self.value) },
             .record_route => Header{ .record_route = try RecordRoute.parse(self.value) },
-            .require => Header{ .require = try Require.parse(self.value) },
+            .require => Header{ .require = try Require.parse(self.value, options) },
             .supported => Header{ .supported = try Supported.parse(self.value) },
             .subject => Header{ .subject = try Subject.parse(self.value) },
             .server => Header{ .server = try Server.parse(self.value) },
@@ -244,11 +245,11 @@ pub const RawHeader = struct {
             else => null,
         };
 
-        return if (self.parsed) |h| h else error.UnknownHeader;
+        return if (self.parsed) |*h| h else error.UnknownHeader;
     }
 };
 
-pub fn parse(parent: *const utils.Msg, reader: anytype) !std.ArrayList(RawHeader) {
+pub fn parse(parent: *const message.Msg, reader: anytype) !std.ArrayList(RawHeader) {
     const options = parent.parse_opts;
     const allocator = parent.arena.allocator();
     var hs = std.ArrayList(RawHeader).init(allocator);

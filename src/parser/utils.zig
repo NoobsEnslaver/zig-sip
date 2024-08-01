@@ -48,26 +48,6 @@ pub const Method = enum(usize) {
     }
 };
 
-pub const MsgTag = enum { req, resp };
-
-pub const Msg = struct {
-    method: Method = undefined,
-    headers: std.ArrayList(hs.RawHeader) = undefined,
-    body: ?[]const u8 = null,
-    tag: MsgTag,
-
-    code: ?u10 = null,
-    reason: ?[]const u8 = null,
-    ruri: ?RURI = null,
-
-    arena: *std.heap.ArenaAllocator = undefined,
-    parse_opts: *const ParseOptions,
-
-    pub fn deinit(self: *@This()) void {
-        self.arena.deinit();
-    }
-};
-
 pub const UnknownHeaderBehaviorTag = enum { err, remove, skip_parsing, callback };
 pub const UnknownHeaderBehavior = union(UnknownHeaderBehaviorTag) {
     err,

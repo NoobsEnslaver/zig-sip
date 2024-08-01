@@ -5,15 +5,54 @@ const ruri = @import("./ruri.zig");
 const Allocator = std.mem.Allocator;
 const Arena = std.heap.ArenaAllocator;
 
+pub const MsgTag = enum { req, resp };
+
+pub const Msg = struct {
+    method: utils.Method = undefined,
+    headers: std.ArrayList(headers.RawHeader) = undefined,
+    body: ?[]const u8 = null,
+    tag: MsgTag,
+
+    code: ?u10 = null,
+    reason: ?[]const u8 = null,
+    ruri: ?ruri.RURI = null,
+
+    arena: *std.heap.ArenaAllocator = undefined,
+    parse_opts: *const utils.ParseOptions,
+
+    pub fn findRawHeader(self: @This(), tag: headers.Tag) ?*headers.RawHeader {
+        for (self.headers.items) |*h| {
+            if (h.tag == tag) return *h;
+        }
+        return null;
+    }
+
+    pub fn findHeader(self: @This(), tag: headers.Tag) !?*headers.Header {
+        for (self.headers.items) |*h| {
+            if (h.tag == tag) {
+                return h.parse();
+            }
+        }
+        return null;
+    }
+
+    pub fn deinit(self: @This()) void {
+        const allocator = self.arena.child_allocator;
+        self.arena.deinit();
+        allocator.destroy(self.arena);
+    }
+};
+
 // -------------- Functions ---------------
-pub fn parseFromSlice(allocator: Allocator, s: []const u8, options: *const utils.ParseOptions) !utils.Msg {
+pub fn parseFromSlice(allocator: Allocator, s: []const u8, options: *const utils.ParseOptions) !Msg {
     var stream = std.io.fixedBufferStream(s);
     const r = stream.reader();
     return parseFromReader(allocator, r, options);
 }
 
-pub fn parseFromReader(allocator: Allocator, reader: anytype, options: *const utils.ParseOptions) !utils.Msg {
-    var arena = std.heap.ArenaAllocator.init(allocator);
+pub fn parseFromReader(allocator: Allocator, reader: anytype, options: *const utils.ParseOptions) !Msg {
+    var arena = try allocator.create(Arena);
+    arena.* = Arena.init(allocator);
     const arena_alloc = arena.allocator();
     errdefer arena.deinit();
 
@@ -33,13 +72,13 @@ pub fn parseFromReader(allocator: Allocator, reader: anytype, options: *const ut
     }
 
     if (std.mem.startsWith(u8, first_line, "SIP/")) { // RESP
-        var resp = try parseStatusLine(&arena, first_line, options);
+        var resp = try parseStatusLine(arena, first_line, options);
         resp.headers = try headers.parse(&resp, lim_reader);
         // TODO: set method from CSeq or error
         // TODO: add body
         return resp;
     } else { // REQ
-        var req = try parseRequestLine(&arena, first_line, options);
+        var req = try parseRequestLine(arena, first_line, options);
         req.headers = try headers.parse(&req, lim_reader);
         // TODO: body
         return req;
@@ -54,7 +93,7 @@ test {
 }
 
 // Request-Line = Method SP Request-URI SP SIP-Version CRLF
-fn parseRequestLine(arena: *Arena, first_line: []const u8, options: *const utils.ParseOptions) !utils.Msg {
+fn parseRequestLine(arena: *Arena, first_line: []const u8, options: *const utils.ParseOptions) !Msg {
     var it = std.mem.tokenizeScalar(u8, first_line, ' ');
     var pos: u8 = 0;
     var m: utils.Method = undefined;
@@ -70,7 +109,7 @@ fn parseRequestLine(arena: *Arena, first_line: []const u8, options: *const utils
     }
     if (pos != 3) return error.UnexpectedToken;
 
-    return utils.Msg{
+    return Msg{
         .arena = arena,
         .parse_opts = options,
         .tag = .req,
@@ -80,7 +119,7 @@ fn parseRequestLine(arena: *Arena, first_line: []const u8, options: *const utils
 }
 
 // Status-Line = SIP-Version SP Status-Code SP Reason-Phrase CRLF
-fn parseStatusLine(arena: *Arena, first_line: []const u8, options: *const utils.ParseOptions) !utils.Msg {
+fn parseStatusLine(arena: *Arena, first_line: []const u8, options: *const utils.ParseOptions) !Msg {
     var it = std.mem.tokenizeScalar(u8, first_line, ' ');
     var pos: u8 = 0;
     var code: u10 = undefined;
@@ -101,7 +140,7 @@ fn parseStatusLine(arena: *Arena, first_line: []const u8, options: *const utils.
     }
     if (pos != 1) return error.UnexpectedToken;
 
-    return utils.Msg{
+    return Msg{
         .arena = arena,
         .tag = .resp,
         .parse_opts = options,

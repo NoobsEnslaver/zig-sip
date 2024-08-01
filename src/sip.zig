@@ -1,11 +1,14 @@
 const std = @import("std");
-const parser = @import("./parser/message.zig");
+const message = @import("./parser/message.zig");
 const utils = @import("./parser/utils.zig");
+const header = @import("./parser/headers.zig");
+const Method = utils.Method;
 // const sdp = @import("./sdp/sdp.zig");
 
 // ---------------- Interfaces --------------------
-pub const Msg = utils.Msg;
-pub const MsgTag = utils.MsgTag;
+pub const Msg = message.Msg;
+pub const MsgTag = message.MsgTag;
+pub const HdrTag = header.Tag;
 
 // ---------------- Testing -----------------------
 const t = std.testing;
@@ -50,9 +53,6 @@ const good = [_][]const u8{
 };
 
 test {
-    var arena = std.heap.ArenaAllocator.init(t.allocator);
-    defer arena.deinit();
-
     //These are messages that the parser should pass
     // const good = [_][]const u8{
     // "test1.txt",
@@ -89,11 +89,13 @@ test {
     //};
 
     for (good, 0..) |raw_msg, i| {
-        const msg = parser.parseFromSlice(arena.allocator(), raw_msg, &.{ .max_line_len = 512 }) catch |err| {
+        var msg = message.parseFromSlice(t.allocator, raw_msg, &.{ .max_line_len = 512, .lazy_parsing = false, .on_parse_method_error = .{ .replace = utils.Method.UNEXPECTED } }) catch |err| {
             std.debug.print("{d}| unexpected parsing error: {any}\n", .{ i, err });
             try t.expect(false);
             continue;
         };
+        defer msg.deinit();
+
         if (msg.tag == .req) {
             std.debug.print("{d}++++++++++++++\nRuri: {s}\n", .{ i, msg.ruri.?.value });
             for (msg.headers.items) |hdr| {
@@ -108,7 +110,7 @@ test {
     // for (bad) |file| {
     //     const fd = try tests_dir.openFile(file, .{});
     //     defer fd.close();
-    //     _ = parser.parseFromReader(arena.allocator(), fd.reader(), &.{}) catch {
+    //     _ = message.parseFromReader(arena.allocator(), fd.reader(), &.{}) catch {
     //         try t.expect(true);
     //         continue;
     //     };
@@ -121,7 +123,7 @@ test {
 //     const raw_msg = @embedFile("./tests/test2.txt");
 //     var arena = std.heap.ArenaAllocator.init(t.allocator);
 //     defer arena.deinit();
-//     const msg = try parser.parseFromSlice(arena.allocator(), raw_msg, &.{});
+//     const msg = try message.parseFromSlice(arena.allocator(), raw_msg, &.{});
 //     try t.expectEqual(utils.MessageType.req, @as(utils.MessageType, msg));
 
 //     const req = msg.req;
@@ -135,7 +137,7 @@ test {
 //     var arena = std.heap.ArenaAllocator.init(t.allocator);
 //     defer arena.deinit();
 //     const parse_opts = .{ .on_parse_method_error = utils.ParseMethodErrBehavior{ .replace = utils.Method.UNEXPECTED } };
-//     const msg = try parser.parseFromSlice(arena.allocator(), raw_msg, &parse_opts);
+//     const msg = try message.parseFromSlice(arena.allocator(), raw_msg, &parse_opts);
 //     try t.expectEqual(utils.MessageType.req, @as(utils.MessageType, msg));
 
 //     const req = msg.req;
@@ -155,7 +157,7 @@ test {
 //     defer arena.deinit();
 
 //     const parse_opts = .{ .on_parse_method_error = utils.ParseMethodErrBehavior{ .callback = test8FixMethodCallback } };
-//     const msg = try parser.parseFromSlice(arena.allocator(), raw_msg, &parse_opts);
+//     const msg = try message.parseFromSlice(arena.allocator(), raw_msg, &parse_opts);
 //     try t.expectEqual(utils.MessageType.req, @as(utils.MessageType, msg));
 
 //     const req = msg.req;
@@ -166,10 +168,9 @@ test {
 
 test "own2.txt" {
     const raw_msg = @embedFile("./tests/own2.txt");
-    var arena = std.heap.ArenaAllocator.init(t.allocator);
-    defer arena.deinit();
-    const msg = try parser.parseFromSlice(arena.allocator(), raw_msg, &.{});
-    try t.expectEqual(utils.MsgTag.resp, msg.tag);
+    const msg = try message.parseFromSlice(t.allocator, raw_msg, &.{});
+    defer msg.deinit();
+    try t.expectEqual(MsgTag.resp, msg.tag);
 
     try t.expectEqual(401, msg.code);
     try t.expectEqualStrings("Unauthorized", msg.reason.?);
@@ -190,36 +191,49 @@ test "own2.txt" {
 //     var arena = std.heap.ArenaAllocator.init(t.allocator);
 //     defer arena.deinit();
 
-//     try t.expectEqual(error.UnexpectedSIPVer, parser.parseFromSlice(arena.allocator(), raw_msg, &.{}));
+//     try t.expectEqual(error.UnexpectedSIPVer, message.parseFromSlice(arena.allocator(), raw_msg, &.{}));
 // }
+
+fn parseShitMethods(str: []const u8) anyerror!Method {
+    if (std.mem.eql(u8, "any", str)) return Method.USER1;
+    if (std.mem.eql(u8, "all", str)) return Method.USER2;
+    return Method.UNEXPECTED;
+}
 
 test "own0.txt" {
     const raw_msg = @embedFile("./tests/own0.txt");
-    var arena = std.heap.ArenaAllocator.init(t.allocator);
-    defer arena.deinit();
-    const msg = try parser.parseFromSlice(arena.allocator(), raw_msg, &.{});
-    try t.expectEqual(utils.MsgTag.req, msg.tag);
+    const opts = &.{ .on_parse_method_error = .{ .callback = &parseShitMethods } };
+    var msg = try message.parseFromSlice(t.allocator, raw_msg, opts);
+    defer msg.deinit();
 
+    try t.expectEqual(MsgTag.req, msg.tag);
     try t.expectEqualStrings("sip:garage.sr.ntc.nokia.com", msg.ruri.?.value);
     try t.expectEqual(utils.Method.REGISTER, msg.method);
+
+    if (try msg.findHeader(HdrTag.allow)) |h| {
+        try t.expect(h.allow.get(utils.Method.USER1));
+        try t.expect(!h.allow.get(utils.Method.INVITE));
+    } else try t.expect(false);
+
+    if (try msg.findHeader(HdrTag.require)) |h| {
+        try t.expect(h.require.get(utils.Method.USER2));
+        try t.expect(!h.require.get(utils.Method.INVITE));
+    } else try t.expect(false);
 }
 
 test "self captured good" {
-    var arena = std.heap.ArenaAllocator.init(t.allocator);
-    defer arena.deinit();
-
     var tests_dir = try std.fs.cwd().openDir("src/tests/my/", .{ .iterate = true });
     defer tests_dir.close();
     var it = tests_dir.iterate();
     while (try it.next()) |file| {
         const fd = try tests_dir.openFile(file.name, .{});
         defer fd.close();
-        const msg = parser.parseFromReader(arena.allocator(), fd.reader(), &.{}) catch |err| {
+        const msg = message.parseFromReader(t.allocator, fd.reader(), &.{}) catch |err| {
             std.debug.print("{s}: unexpected parsing error: {any}\n", .{ file.name, err });
             try t.expect(false);
             continue;
         };
-
+        defer msg.deinit();
         if (msg.tag == .req) {
             // std.debug.print("++++++{s}++++++++\nRuri: {s}\n", .{ file.name, msg.req.ruri.value });
             // for (msg.req.headers.items) |hdr| {
