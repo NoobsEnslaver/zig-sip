@@ -27,7 +27,6 @@ pub const Parser = struct {
         // parse headers
         // if content_len > 0 -> parse sdp
 
-        // FIXME: use unils.readUntilDelimiterAlloc for split by "\r\n"?
         var first_line: []const u8 = try reader.readUntilDelimiterAlloc(self.allocator, '\n', self.options.max_line_len);
         first_line = std.mem.trim(u8, first_line, &std.ascii.whitespace);
         if (first_line.len < 12) {

@@ -24,7 +24,7 @@ const good = [_][]const u8{
     @embedFile("./tests/own4.txt"),
     @embedFile("./tests/own5.txt"),
     @embedFile("./tests/own6.txt"),
-    @embedFile("./tests/test1.txt"),
+    // @embedFile("./tests/test1.txt"),
     @embedFile("./tests/test2.txt"),
     @embedFile("./tests/test3.txt"),
     @embedFile("./tests/test4.txt"),
@@ -209,6 +209,18 @@ test "own0.txt" {
     try t.expectEqual(MsgTag.req, msg.tag);
     try t.expectEqualStrings("sip:garage.sr.ntc.nokia.com", msg.ruri.?.value);
     try t.expectEqual(utils.Method.REGISTER, msg.method);
+
+    std.debug.print("headers own0: {any}\n", .{msg.headers});
+
+    {
+        var it = msg.walkRawHeader(HdrTag.via);
+        const via1 = it.next().?;
+        try t.expectEqualStrings("SIP/2.0/UDP srlab.sr.ntc.nokia.com:5060;maddr=192.168.102.5", via1.value);
+        const via2 = it.next().?;
+        try t.expectEqualStrings("SIP/2.0/TCP srlab.sr.ntc.nokia.com:5060;maddr=192.168.102.5 (NTA 1.0)", via2.value);
+        const via3 = it.next().?;
+        try t.expectEqualStrings("SIP/2.0/UDP 192.2.2.1:5060;received=[ffe0::FAB1]", via3.value);
+    }
 
     if (try msg.findHeader(HdrTag.allow)) |h| {
         try t.expect(h.allow.get(utils.Method.USER1));

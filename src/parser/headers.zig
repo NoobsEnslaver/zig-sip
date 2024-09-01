@@ -240,9 +240,9 @@ pub const RawHeader = struct {
             .subject => Header{ .subject = try Subject.parse(self.value) },
             .server => Header{ .server = try Server.parse(self.value) },
             .user_agent => Header{ .user_agent = try UserAgent.parse(self.value) },
-            .via => Header{ .via = try Via.parse(self.value) },
+            .via => Header{ .via = try Via.parse(self.value, allocator, options) },
             .warning => Header{ .warning = try Warning.parse(self.value) },
-            else => null,
+            .unknown => null,
         };
 
         return if (self.parsed) |*h| h else error.UnknownHeader;
@@ -287,18 +287,38 @@ pub fn parse(parent: *const message.Msg, reader: anytype) !std.ArrayList(RawHead
             return error.UnexpectedToken;
         }
 
-        const k = try allocator.alloc(u8, key.len);
-        const v = try allocator.alloc(u8, value.len);
-        @memcpy(k, key);
-        @memcpy(v, value);
-        const hdr = RawHeader{
-            .key = k,
-            .value = v,
-            .parent = parent,
-            .tag = Tag.parse(key),
-        };
+        const tag = Tag.parse(key);
+        // Do not supports ','  on multiline mode
+        if (is_comma_separated(tag, value)) {
+            var it = std.mem.tokenizeScalar(u8, value, ',');
+            const k = try allocator.alloc(u8, key.len);
+            @memcpy(k, key);
+            while (it.next()) |val| {
+                const v = try allocator.alloc(u8, val.len);
+                @memcpy(v, val);
+                const hdr = RawHeader{
+                    .key = k,
+                    .value = v,
+                    .parent = parent,
+                    .tag = tag,
+                };
 
-        try hs.append(hdr);
+                try hs.append(hdr);
+            }
+        } else {
+            const k = try allocator.alloc(u8, key.len);
+            const v = try allocator.alloc(u8, value.len);
+            @memcpy(k, key);
+            @memcpy(v, value);
+            const hdr = RawHeader{
+                .key = k,
+                .value = v,
+                .parent = parent,
+                .tag = tag,
+            };
+
+            try hs.append(hdr);
+        }
     }
 
     // TODO: доработать
@@ -325,6 +345,13 @@ pub fn parse(parent: *const message.Msg, reader: anytype) !std.ArrayList(RawHead
     }
 
     return hs;
+}
+
+fn is_comma_separated(tag: Tag, v: []const u8) bool {
+    return switch (tag) {
+        .via => std.mem.indexOfScalar(u8, v, ',') != null,
+        else => false,
+    };
 }
 
 // --------------- Rest -------------------------

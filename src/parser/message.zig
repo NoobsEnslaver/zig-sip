@@ -27,6 +27,14 @@ pub const Msg = struct {
         return null;
     }
 
+    pub fn walkRawHeader(self: @This(), tag: headers.Tag) RawHeadersIterator {
+        return .{
+            .index = 0,
+            .headers = &self.headers,
+            .tag = tag,
+        };
+    }
+
     pub fn findHeader(self: @This(), tag: headers.Tag) !?*headers.Header {
         for (self.headers.items) |*h| {
             if (h.tag == tag) {
@@ -40,6 +48,43 @@ pub const Msg = struct {
         const allocator = self.arena.child_allocator;
         self.arena.deinit();
         allocator.destroy(self.arena);
+    }
+};
+
+pub const RawHeadersIterator = struct {
+    index: usize,
+    tag: headers.Tag,
+    headers: *const std.ArrayList(headers.RawHeader),
+
+    // const Self = @This();
+
+    pub fn next(self: *@This()) ?*headers.RawHeader {
+        while (self.index < self.headers.items.len) {
+            std.debug.print("+++++++++ index: {d} of {d}\n", .{ self.index, self.headers.items.len });
+            if (self.headers.items[self.index].tag == self.tag) {
+                const res = &self.headers.items[self.index];
+                self.index += 1;
+                return res;
+            }
+            self.index += 1;
+        }
+        return null;
+    }
+
+    pub fn peek(self: *@This()) ?*headers.Header {
+        if (self.headers.items[self.index].tag == self.tag) {
+            return &self.headers.items[self.index];
+        } else {
+            return self.next();
+        }
+    }
+
+    pub fn rest(self: *@This()) []headers.Header {
+        return self.headers.items[self.index..];
+    }
+
+    pub fn reset(self: *@This()) void {
+        self.index = 0;
     }
 };
 
